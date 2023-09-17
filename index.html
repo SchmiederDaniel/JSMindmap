@@ -1,0 +1,712 @@
+<!--
+                    GNU GENERAL PUBLIC LICENSE
+                       Version 3, 29 June 2007
+
+ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+-->
+<html>
+<header>
+    <title>Mindmap</title>
+    <style>
+        * {
+            font-size: 14px;
+            color: white;
+            padding: 0;
+            margin: 0;
+        }
+
+        #textarea {
+            font-size: 18px;
+            font-weight: bolder;
+            tab-size: 4;
+            font-family: Arial;
+
+            width: calc(100% - 40px);
+            height: calc(70%);
+            padding: 15px;
+            float: right;
+
+            background-color: rgb(38, 64, 94);
+            resize: none;
+            white-space: pre;
+            border: none;
+            outline: none;
+
+            border-color: black;
+            border-bottom-width: 4px;
+            border-bottom-style: solid;
+            border-left-width: 4px;
+            border-left-style: solid;
+        }
+
+        #pairTextarea {
+            font-size: 18px;
+            font-weight: bolder;
+            tab-size: 4;
+            font-family: Arial;
+
+            width: 100%;
+            height: calc(30% - 70px);
+            padding: 15px;
+            float: right bottom;
+
+            background-color: rgb(38, 64, 94);
+            resize: none;
+            white-space: pre;
+            border: none;
+            outline: none;
+
+            border-color: black;
+            border-bottom-width: 4px;
+            border-bottom-style: solid;
+        }
+
+        #indexIndicator {
+            font-size: 18px;
+            font-weight: bolder;
+            font-family: Arial;
+
+            float: left;
+            width: 40px;
+            height: calc(70% - 19px);
+            text-align: center;
+            padding-top: 15px;
+
+            border-color: black;
+            border-bottom-width: 4px;
+            border-bottom-style: solid;
+
+            background-color: rgb(38, 64, 94);
+        }
+
+        #sidePanel {
+            float: left;
+            height: 100%;
+            width: calc(350px - 4px);
+            background-color: rgb(120, 165, 213);
+
+            border: none;
+            border-right-width: 4px;
+            border-color: black;
+            border-right-style: solid;
+
+            filter: drop-shadow(10px 8px 8px rgba(0, 0, 0, 0.8));
+        }
+
+        #slider {
+            width: calc(350px - 30px);
+            margin: 8px;
+            margin-top: 0;
+            left: 0;
+        }
+
+        #sliderValue {
+            color: black;
+            margin: 8px;
+            margin-bottom: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 20px;
+            font-weight: bolder;
+        }
+
+        canvas {
+            height: 100%;
+            width: calc(100% - 350px);
+        }
+    </style>
+</header>
+
+
+<body>
+    <div id="sidePanel">
+        <div id="indexIndicator"></div>
+        <textarea id="textarea" placeholder="Write your buble text here.
+Seperate them with one
+empty line.">
+Example:
+
+Text
+=
+nBubble
+
+Index1+Arrow+Index2
+
+Try it out!</textarea>
+        <textarea id="pairTextarea" placeholder="Write the pairs here
+or connect them with
+your mouse.">
+0>1
+0>2
+0>3</textarea>
+        <p id="sliderValue">Font Size: 25</p>
+        <input id="slider" type="range" min="8" max="40" value="25">
+    </div>
+    <canvas id="canvas" spellcheck="false"></canvas>
+    <img id="backgroundImage" src="assets/img.png" style="visibility: hidden; position:fixed;">
+
+    <script>
+        /*  TODO LIST:
+        - Create bubbles only when there is one empty line between two words otherwise make a line wrap (get rid of the \n stuff)               [1]
+        - Make the arrow connections in a new textarea (than make it use ">" instead of "->" for shorter writing)
+        - Make a new small textarea at the left side where a number indicated which bubble "index" is at which line at the right side
+        - Make a screenshot button which creates a image at a high resolution and renders the canvas on it and saves it to downloads folder.
+        
+        - Improve the tracking of the bubbles so that new bubbles can be added in between without corrupting the arrows and colors. Maybe easier with [1]
+
+        - Make the bubbles getting pushed away by the border of the screen (to squish them into the screen area)
+        - Make a choosable Width/Height ratio which can be used for screenshots later
+        - Make the lines push away the bubbles too (so no lines wil overlap)
+        - Make the bubbles selectable and a seperated value chooser for setting the font size of every bubble individually
+
+        - Idk if it is possible but try to move the shadow of the bubbles slightly up so that it seems that the shadow gets casted behind them and draw another 
+            circle at the bottom with a slighly brighter color so that it looks like they are 3d.
+        */
+        /*
+            background-image: url("assets/img.png");
+            background-repeat: repeat;
+            background-size: 20%, 20%;
+        */
+        let bubbles = [];
+        let pairs = [];
+        const CENTER_SPEED = 0.00003;
+        const PULL_STRENGTH = 0.012;
+        const PUSH_STRENGTH = 0.024;
+        let maxSize = 0;
+        let BUBBLE_TEXT_SIZE = 25;
+        let BUBBLE_FONT = "bolder " + BUBBLE_TEXT_SIZE + "px Arial";
+        const TEXT_PADDING = 4;
+        const MOVE_PADDING = 0.03;
+        const TRANSPARENT_LINE_COLOR = "rgba(0, 0, 0, 0.25)"
+        const BUBBLE_OUTLINE_WIDTH = 0.4;
+        const BACKGROUND_IMAGE = document.getElementById("backgroundImage");
+
+        recreateBubbles();
+
+
+        // code to refocus the textarea on leave
+        //textarea.onblur = () => setTimeout(() => textarea.focus(), 1)
+
+        textarea.addEventListener('keydown', function (e) { // https://stackoverflow.com/questions/6637341/use-tab-to-indent-in-textarea
+            if (e.key == 'Tab') {
+                e.preventDefault();
+                var start = this.selectionStart;
+                var end = this.selectionEnd;
+                // set textarea value to: text before caret + tab + text after caret
+                this.value = this.value.substring(0, start) + "\t" + this.value.substring(end);
+                // put caret at right position again
+                this.selectionStart = this.selectionEnd = start + 1;
+            }
+        });
+
+        slider.oninput = (e) => {
+            BUBBLE_TEXT_SIZE = Math.round(slider.value);
+            BUBBLE_FONT = "bolder " + BUBBLE_TEXT_SIZE + "px Arial";
+            sliderValue.innerHTML = "Font Size: " + BUBBLE_TEXT_SIZE;
+            updateBubbles();
+        };
+
+        // ------------ text area ---------------------
+
+        textarea.onscroll = (event) => {
+            indexIndicator.scrollTop = textarea.scrollHeight;
+        }
+
+        let lastText = textarea.value;
+        textarea.addEventListener("input", (event) => {
+            if (!textarea.value.match(/^(.*\n{0,1})*$/)) {
+                textarea.value = lastText;
+            } else if (updateBubbles()) {
+                textarea.value = lastText;
+            } else {
+                lastText = textarea.value;
+            }
+        });
+
+        let lastPairText = pairTextarea.value;
+        pairTextarea.addEventListener("input", (event) => {
+            if (!pairTextarea.value.match(/^(\n|\d*|(\d*>\d*))*$/)) {
+                pairTextarea.value = lastPairText;
+            } else if (updateBubbles()) {
+                pairTextarea.value = lastPairText;
+            } else {
+                lastPairText = pairTextarea.value;
+            }
+        });
+
+        function recreateBubbles() {
+            let split = textarea.value.split("\n\n");
+            bubbles = [];
+            pairs = [];
+
+            for (let line of split) {
+                bubbles.push(createNewBubble(line));
+            }
+
+            split = pairTextarea.value.split("\n");
+            for (let line of split) {
+                if (line.includes(">")) {
+                    let numberSplit = line.split(">");
+                    if (numberSplit[0].length == 0 || numberSplit[1].length == 0 || numberSplit[0].match(/.*\D.*/) || numberSplit[1].match(/.*\D.*/)) {
+                        return true;
+                    }
+                    pairs.push([
+                        parseInt(numberSplit[0]),
+                        parseInt(numberSplit[1])
+                    ]);
+                } else {
+                    // lines which doesnt contain a arrow are ingored
+                }
+            }
+        }
+
+        function updateBubbles() {
+            let split = textarea.value.split("\n\n");
+
+            let bubblesCopy = bubbles.slice();
+            bubbles = [];
+            pairs = [];
+            let counter = 0;
+            for (let line of split) {
+                let newBubble = createNewBubble(line);
+                if (counter < bubblesCopy.length) {
+                    let oldBubble = bubblesCopy[counter];
+                    newBubble.color = oldBubble.color;
+                    newBubble.x = oldBubble.x;
+                    newBubble.y = oldBubble.y;
+                    newBubble.motionX = oldBubble.motionX;
+                    newBubble.motionX = oldBubble.motionX;
+                }
+                bubbles.push(newBubble);
+                counter++;
+            }
+
+            split = pairTextarea.value.split("\n");
+            for (let line of split) {
+                if (line.includes(">")) {
+                    let numberSplit = line.split(">");
+                    if (numberSplit[0].length == 0 || numberSplit[0].match(/.*\D.*/) || numberSplit[1].match(/.*\D.*/)) {
+                        return true;
+                    }
+                    pairs.push([
+                        parseInt(numberSplit[0]),
+                        parseInt(numberSplit[1])
+                    ]);
+                }
+            }
+
+            return false;
+        }
+
+        // prevent rightclick menu
+        canvas.addEventListener('contextmenu', event => event.preventDefault());
+
+        // ------------ mouse events ------------------
+        let lastMouseX = null;
+        let lastMouseY = null;
+        let draggingBubble = null;
+        let selectedBubble = null;
+        canvas.onmousedown = (e) => {
+            let mouseX = canvasToGamePositionX(e.offsetX);
+            let mouseY = canvasToGamePositionY(e.offsetY);
+
+            if (e.buttons == 1) { // mouse left click
+                for (let bubble of bubbles) {
+                    if (Math.hypot(bubble.x - mouseX, bubble.y - mouseY) < bubble.radius) {
+                        draggingBubble = bubble;
+                        draggingBubble.dragging = true;
+                        break;
+                    }
+                }
+            }
+
+            if (e.buttons == 2) { // mouse right click
+                pairSearch:
+                for (let bubble of bubbles) {
+                    if (Math.hypot(bubble.x - mouseX, bubble.y - mouseY) < bubble.radius) {
+                        if (selectedBubble == bubble) {
+                            deselectBubble();
+                        } else if (selectedBubble == null) {
+                            selectBubble(bubble);
+                        } else {
+                            let selectedBubbleIndex = bubbles.indexOf(selectedBubble);
+                            let bubbleIndex = bubbles.indexOf(bubble);
+
+                            if (pairEixts(selectedBubbleIndex, bubbleIndex)) { // remove pair if already in array
+                                removePairWithMouse(selectedBubbleIndex, bubbleIndex);
+                                deselectBubble();
+                                break pairSearch;
+                            }
+
+                            // add pair
+                            addPairWithMouse(selectedBubbleIndex, bubbleIndex)
+                            deselectBubble();
+                        }
+                        break;
+                    }
+                }
+            }
+
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
+        };
+
+        function pairEixts(firstIndex, secondIndex) {
+            for (let i = 0; i < pairs.length; i++) {
+                let pair = pairs[i];
+                if ((pair[0] == firstIndex && pair[1] == secondIndex) || (pair[1] == firstIndex && pair[0] == secondIndex)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function addPairWithMouse(firstIndex, secondIndex) {
+            removePairWithMouse(firstIndex, secondIndex);
+
+            if (pairTextarea.value.length != 0) {
+                pairTextarea.value += "\n";
+            }
+
+            pairTextarea.value += firstIndex + ">" + secondIndex;
+            updateBubbles();
+        }
+
+        function removePairWithMouse(firstIndex, secondIndex) {
+            let lines = pairTextarea.value.split("\n");
+            let resultText = "";
+            for (let line of lines) {
+                if (line.includes(">")) {
+                    let split = line.split(">");
+                    if ((split[0] == firstIndex && split[1] == secondIndex) || (split[1] == firstIndex && split[0] == secondIndex)) {
+                        continue;
+                    }
+                }
+                if (resultText.length > 0 && resultText.charAt(resultText.length - 1) != '\n') {
+                    resultText += "\n";
+                }
+                resultText += line;
+            }
+            lastPairText = resultText;
+            pairTextarea.value = resultText;
+
+            updateBubbles();
+        }
+
+        function selectBubble(bubble) {
+            selectedBubble = bubble;
+            selectedBubble.selected = true;
+            canvas.style.cursor = "pointer";
+        }
+
+        function deselectBubble() {
+            canvas.style.cursor = "default";
+            selectedBubble.selected = false;
+            selectedBubble = null;
+        }
+
+        function canvasToGamePositionX(screenX) {
+            return (screenX - canvas.clientWidth / 2) / maxSize + 0.5;
+        }
+
+        function canvasToGamePositionY(screenY) {
+            return (screenY - canvas.clientHeight / 2) / maxSize + 0.5;
+        }
+
+        canvas.onmouseup = (e) => {
+            lastMouseX = null;
+            lastMouseY = null;
+            if (draggingBubble != null) {
+                draggingBubble.dragging = false;
+            }
+            draggingBubble = null;
+        };
+
+        canvas.onmousemove = (e) => {
+            let mouseX = canvasToGamePositionX(e.offsetX);
+            let mouseY = canvasToGamePositionY(e.offsetY);
+
+            if (draggingBubble != null) {
+                draggingBubble.x += mouseX - lastMouseX;
+                draggingBubble.y += mouseY - lastMouseY;
+            }
+
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
+        };
+
+        // ------------ resizing and drawing ------------------
+        window.onresize = (e) => resize();
+        textarea.onresize = (e) => resize();
+        resize();
+        function resize() {
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+            maxSize = Math.max(canvas.width, canvas.height);
+
+            for (let bubble of bubbles) {
+                bubble.radius = calculateBubbleRadius(bubble.text);
+            }
+
+            draw();
+        }
+
+        function calculateBubbleRadius(text) {
+            let context = canvas.getContext("2d");
+            context.font = BUBBLE_FONT;
+            context.textAlign = "center";
+            let lines = text.split("\n");
+
+            height = -(BUBBLE_TEXT_SIZE * (lines.length - 1)) * 0.5;
+            let maxRadius = 0;
+            for (const line of lines) {
+                let measure = context.measureText(line);
+                let lineWidth = measure.width;
+                let textY = height + BUBBLE_TEXT_SIZE / 2;
+                if (textY <= 0)
+                    textY -= BUBBLE_TEXT_SIZE;
+
+                let radius = (
+                    Math.hypot(lineWidth / 2 + TEXT_PADDING, Math.abs(textY) + TEXT_PADDING)
+                    + BUBBLE_OUTLINE_WIDTH * BUBBLE_TEXT_SIZE
+                ) / maxSize;
+                if (radius > maxRadius)
+                    maxRadius = radius;
+
+                height += BUBBLE_TEXT_SIZE;
+            }
+            return maxRadius;
+        }
+
+        function createNewBubble(text) {
+            return {
+                text: text,
+                x: (pseudoRandom(bubbles.length) - 0.5) * 0.7 + 0.5,
+                y: (pseudoRandom(bubbles.length * 10000) - 0.5) * 0.7 + 0.5,
+                motionX: 0,
+                motionY: 0,
+                dragging: false,
+                color: "hsl(" + Math.floor(pseudoRandom(bubbles.length) * 360) + ", 100%, 50%)",
+                radius: calculateBubbleRadius(text),
+                selected: false
+            };
+        }
+
+        setInterval(draw, 16);
+
+        function draw() {
+            let context = canvas.getContext("2d");
+            context.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let x = 0; x < canvas.clientWidth; x += 260) {
+                for (let y = 0; y < canvas.clientHeight; y += 200) {
+                    context.drawImage(BACKGROUND_IMAGE, x, y, 260, 200);
+                }
+            }
+
+            /*context.beginPath();
+            context.moveTo(0, 0);
+            context.lineTo(canvas.width, canvas.height);
+            context.stroke();
+ 
+            context.beginPath();
+            context.moveTo(0, canvas.height);
+            context.lineTo(canvas.width, 0);
+            context.stroke();*/
+
+            context.save();
+
+            context.translate(
+                (canvas.width - maxSize) / 2,
+                (canvas.height - maxSize) / 2
+            );
+
+            context.shadowColor = "black";
+            context.shadowBlur = 20;
+            context.fillStyle = "black";
+            context.lineWidth = BUBBLE_TEXT_SIZE * 0.6;
+            for (let pair of pairs) {
+                let first = bubbles[pair[0]];
+                let second = bubbles[pair[1]];
+                if (first == undefined || second == undefined)
+                    continue;
+                context.beginPath();
+                context.moveTo(first.x * maxSize, first.y * maxSize);
+                context.lineTo(second.x * maxSize, second.y * maxSize);
+                context.stroke();
+            }
+
+            context.font = BUBBLE_FONT;
+            context.textAlign = "center";
+            for (let bubble of bubbles) {
+                // draw bubble itself
+
+                context.shadowColor = "black";
+                context.shadowBlur = 20;
+                context.fillStyle = bubble.color;
+                context.beginPath();
+                context.arc(bubble.x * maxSize, bubble.y * maxSize, bubble.radius * maxSize, 0, 2 * Math.PI, false);
+                context.fill();
+
+                if (bubble.selected) {
+                    for (let i = 0; i < 3; i++) {
+                        context.beginPath();
+                        context.arc(bubble.x * maxSize, bubble.y * maxSize, bubble.radius * maxSize, 0, 2 * Math.PI, false);
+                        context.fill();
+                    }
+                }
+
+                // draw outline
+                context.shadowBlur = 0;
+                context.strokeStyle = TRANSPARENT_LINE_COLOR;
+                context.lineWidth = BUBBLE_TEXT_SIZE * BUBBLE_OUTLINE_WIDTH; // TODO: replace BUBBLE_TEXT_SIZE with the ball.textsize later
+                context.beginPath();
+                context.arc(bubble.x * maxSize, bubble.y * maxSize, Math.ceil(bubble.radius * maxSize - context.lineWidth / 2), 0, 2 * Math.PI);
+                context.stroke();
+
+                // draw the text
+                context.shadowColor = "white";
+                context.shadowBlur = 8;
+                context.fillStyle = "black";
+
+                let lines = bubble.text.split("\n");
+                let height = -(BUBBLE_TEXT_SIZE * (lines.length - 1)) * 0.5;
+                for (const line of lines) {
+                    context.fillText(line, bubble.x * maxSize, bubble.y * maxSize + BUBBLE_TEXT_SIZE / 2 + height);
+                    height += BUBBLE_TEXT_SIZE;
+                }
+            }
+
+
+            // DEBUG
+            /*for (let pair of pairs) {
+                let first = bubbles[pair[0]];
+                let second = bubbles[pair[1]];
+                if (first == undefined || second == undefined)
+                    continue;
+                let b = Math.hypot(first.x - second.x, first.y - second.y);
+
+                let alpha = Math.atan2(second.y - first.y, second.x - first.x) - Math.atan2(0.5 - first.y, 0.5 - first.x);
+                //let beta = Math.atan2(0.5 - second.y, 0.5 - second.x) - Math.atan2(first.y - second.y, first.x - second.x);
+                let a = b * Math.tan(alpha);
+                let c = Math.hypot(a, b);
+
+                let rotation = Math.atan2(second.y - first.y, second.x - first.x);
+                let newX = Math.cos(rotation) * c;
+                let newY = Math.sin(rotation) * c;
+
+                context.lineWidth = 8;
+                context.strokeStyle = "red";
+                context.beginPath();
+                context.moveTo(0.5 * maxSize, 0.5 * maxSize, 20, 0, 2 * Math.PI, false);
+                context.lineTo((first.x + newX) * maxSize, (first.y + newY) * maxSize, 20, 0, 2 * Math.PI, false);
+                context.stroke();
+
+                context.strokeStyle = "blue";
+                context.beginPath();
+                context.moveTo(0.5 * maxSize, 0.5 * maxSize, 20, 0, 2 * Math.PI, false);
+                context.lineTo(first.x * maxSize, first.y * maxSize, 20, 0, 2 * Math.PI, false);
+                context.stroke();
+            }*/
+
+            context.restore();
+        }
+
+        function toDegrees(angle) {
+            return angle * (180 / Math.PI);
+        }
+        function toRadians(angle) {
+            return angle * (Math.PI / 180);
+        }
+
+        setInterval(gameTick, 50);
+        function gameTick() {
+            for (let bubble of bubbles) {
+                centerBubble(bubble);
+            }
+
+            for (let first of bubbles) {
+                for (let second of bubbles) {
+                    if (first != second) {
+                        detract(first, second);
+                    }
+                }
+            }
+
+            for (let pair of pairs) {
+                let first = bubbles[pair[0]];
+                let second = bubbles[pair[1]];
+                if (first == undefined || second == undefined) {
+                    continue;
+                }
+
+                attract(first, second);
+                attract(second, first);
+            }
+
+            for (let bubble of bubbles) {
+                if (bubble.dragging) {
+                    bubble.motionX = 0;
+                    bubble.motionY = 0;
+                    continue;
+                }
+                bubble.x += bubble.motionX;
+                bubble.y += bubble.motionY;
+                bubble.x = Math.max(bubble.x, canvasToGamePositionX(0));
+                bubble.x = Math.min(bubble.x, canvasToGamePositionX(canvas.clientWidth));
+                bubble.y = Math.max(bubble.y, canvasToGamePositionY(0));
+                bubble.y = Math.min(bubble.y, canvasToGamePositionY(canvas.clientHeight));
+
+                bubble.motionX *= 0.95;
+                bubble.motionY *= 0.95;
+            }
+        }
+
+        function centerBubble(bubble) {
+            let rotation = Math.atan2(0.5 - bubble.y, 0.5 - bubble.x);
+            bubble.motionX += Math.cos(rotation) * CENTER_SPEED;
+            bubble.motionY += Math.sin(rotation) * CENTER_SPEED;
+        }
+
+        function attract(first, second) {
+            let combinedSizes = first.radius + second.radius + MOVE_PADDING;
+
+            let rotation = Math.atan2(second.y - first.y, second.x - first.x);
+            let distance = Math.hypot(first.x - second.x, first.y - second.y) - combinedSizes;
+            distance = Math.max(Math.min(distance, combinedSizes), 0);
+
+            first.motionX += Math.cos(rotation) * distance * PULL_STRENGTH;
+            first.motionY += Math.sin(rotation) * distance * PULL_STRENGTH;
+        }
+
+        function detract(first, second) {
+            let combinedSizes = first.radius + second.radius + MOVE_PADDING;
+
+            let rotation = Math.atan2(first.y - second.y, first.x - second.x);
+            let distance = combinedSizes - Math.hypot(first.x - second.x, first.y - second.y);
+            distance = Math.max(distance, 0);
+
+            first.motionX += Math.cos(rotation) * distance * PUSH_STRENGTH;
+            first.motionY += Math.sin(rotation) * distance * PUSH_STRENGTH;
+        }
+
+        function detractLine(bubble, line) {
+            let combinedSizes = bubble.radius + line.radius + MOVE_PADDING;
+
+            let rotation = Math.atan2(bubble.y - line.y, bubble.x - line.x);
+            let distance = combinedSizes - Math.hypot(bubble.x - line.x, bubble.y - line.y);
+            distance = Math.max(distance, 0);
+
+            bubble.motionX += Math.cos(rotation) * distance * PUSH_STRENGTH;
+            bubble.motionY += Math.sin(rotation) * distance * PUSH_STRENGTH;
+        }
+
+        function pseudoRandom(seed) {
+            var r = Math.PI * (seed ^ 323542)
+            return r - Math.floor(r)
+        }
+    </script>
+</body>
+
+</html>

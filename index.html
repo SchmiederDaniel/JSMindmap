@@ -263,7 +263,7 @@ your mouse.">
         let bubbles = [];
         let pairs = [];
         const CENTER_SPEED = 0.00005;
-        const PULL_STRENGTH = 0.014;
+        const PULL_STRENGTH = 0.01;
         const PUSH_STRENGTH = 0.028;
         const LINE_PUSH_STRENGTH = 0.003;
         let maxSize = 0;
@@ -381,6 +381,15 @@ your mouse.">
                         parseInt(numberSplit[0]),
                         parseInt(numberSplit[1])
                     ]);
+
+                    let first = bubbles[numberSplit[0]];
+                    if (first != null) {
+                        first.connections++;
+                    }
+                    let second = bubbles[numberSplit[1]];
+                    if (second != null) {
+                        first.connections++;
+                    }
                 } else {
                     // lines which doesnt contain a arrow are ingored
                 }
@@ -423,6 +432,15 @@ your mouse.">
                         parseInt(numberSplit[0]),
                         parseInt(numberSplit[1])
                     ]);
+
+                    let first = bubbles[numberSplit[0]];
+                    if (first != null) {
+                        first.conntections++;
+                    }
+                    let second = bubbles[numberSplit[1]];
+                    if (second != null) {
+                        first.conntections++;
+                    }
                 }
             }
 
@@ -624,7 +642,8 @@ your mouse.">
                 color: "hsl(" + Math.floor(pseudoRandom(bubbles.length) * 360) + ", 100%, 50%)",
                 radius: calculateBubbleRadius(text, DEFAULT_TEXT_SIZE * globalSize),
                 selected: false,
-                textSizeMultiplier: 1
+                textSizeMultiplier: 1,
+                connections: 0
             };
         }
 
@@ -820,9 +839,13 @@ your mouse.">
                 bubble.y = Math.max(bubble.y, canvasToGamePositionY(0));
                 bubble.y = Math.min(bubble.y, canvasToGamePositionY(canvas.clientHeight));
 
-                bubble.motionX *= 0.95;
-                bubble.motionY *= 0.95;
+                bubble.motionX *= 0.94;
+                bubble.motionY *= 0.94;
             }
+        }
+
+        function calculateMovePadding(first, second) {
+            return MOVE_PADDING + (first.connections + second.connections) * 0.001;
         }
 
         function centerBubble(bubble) {
@@ -832,7 +855,7 @@ your mouse.">
         }
 
         function attract(first, second) {
-            let combinedSizes = first.radius + second.radius + MOVE_PADDING;
+            let combinedSizes = first.radius + second.radius + calculateMovePadding(first, second);
 
             let rotation = Math.atan2(second.y - first.y, second.x - first.x);
             let distance = Math.hypot(first.x - second.x, first.y - second.y) - combinedSizes;
@@ -843,7 +866,7 @@ your mouse.">
         }
 
         function detract(first, second) {
-            let combinedSizes = first.radius + second.radius + MOVE_PADDING;
+            let combinedSizes = first.radius + second.radius + calculateMovePadding(first, second);
 
             let distance = combinedSizes - Math.hypot(first.x - second.x, first.y - second.y);
 
@@ -860,10 +883,12 @@ your mouse.">
             let combinedSizes = bubble.radius / 2 + MOVE_PADDING;
 
             let rotation = Math.atan2(point[1] - bubble.y, point[0] - bubble.x);
-            console.log(rotation)
 
             let distance = combinedSizes - Math.hypot(point[0] - bubble.x, point[1] - bubble.y);
             distance = Math.max(distance, 0);
+
+            bubble.motionX += Math.cos(rotation + toRadians(180)) * distance * LINE_PUSH_STRENGTH;
+            bubble.motionY += Math.sin(rotation + toRadians(180)) * distance * LINE_PUSH_STRENGTH;
 
             first.motionX += Math.cos(rotation) * distance * LINE_PUSH_STRENGTH;
             first.motionY += Math.sin(rotation) * distance * LINE_PUSH_STRENGTH;

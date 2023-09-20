@@ -402,11 +402,11 @@ your mouse.">
             let bubblesCopy = bubbles.slice();
             bubbles = [];
             pairs = [];
-            let counter = 0;
-            for (let line of split) {
+            for (let i = 0; i < split.length; i++) {
+                let line = split[i];
                 let newBubble = createNewBubble(line);
-                if (counter < bubblesCopy.length) {
-                    let oldBubble = bubblesCopy[counter];
+                if (i < bubblesCopy.length) {
+                    let oldBubble = bubblesCopy[i];
                     newBubble.color = oldBubble.color;
                     newBubble.x = oldBubble.x;
                     newBubble.y = oldBubble.y;
@@ -416,9 +416,25 @@ your mouse.">
                     newBubble.selected = oldBubble.selected;
                     newBubble.textSizeMultiplier = oldBubble.textSizeMultiplier;
                     newBubble.radius = calculateBubbleRadius(newBubble.text, textSizeOfBubble(newBubble));
+
+                    if(oldBubble.selected) {
+                        selectedBubble = newBubble;
+                    }
                 }
                 bubbles.push(newBubble);
-                counter++;
+            }
+
+            if (bubbles.length > bubblesCopy.length) {
+                let selectedIndex = bubbles.indexOf(selectedBubble);
+                if(selectedIndex != -1) {
+                    pairTextarea.value += "\n" + selectedIndex + ">" + (bubbles.length - 1);
+                    
+                    let newBubble = bubbles[bubbles.length - 1];
+                    let distance = selectedBubble.radius / 2 + newBubble.radius / 2;
+                    let rotation = toRadians(Math.random() * 360);
+                    newBubble.x = selectedBubble.x + Math.cos(rotation) * distance;
+                    newBubble.y = selectedBubble.y + Math.sin(rotation) * distance;
+                }
             }
 
             split = pairTextarea.value.split("\n");

@@ -428,9 +428,10 @@ your mouse.">
                 let selectedIndex = bubbles.indexOf(selectedBubble);
                 if(selectedIndex != -1) {
                     pairTextarea.value += "\n" + selectedIndex + ">" + (bubbles.length - 1);
-                    
+
+                    // change the position of the bubble to the selectedBubble with a random rotation
                     let newBubble = bubbles[bubbles.length - 1];
-                    let distance = selectedBubble.radius / 2 + newBubble.radius / 2;
+                    let distance = selectedBubble.radius / 2 + newBubble.radius / 2 + MOVE_PADDING;
                     let rotation = toRadians(Math.random() * 360);
                     newBubble.x = selectedBubble.x + Math.cos(rotation) * distance;
                     newBubble.y = selectedBubble.y + Math.sin(rotation) * distance;

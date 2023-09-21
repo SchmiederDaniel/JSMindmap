@@ -34,7 +34,7 @@
             font-family: Arial;
 
             height: 75%;
-            width: calc(100% - 40px);
+            width: calc(100% - 30px);
             padding: 15px;
 
             background-color: var(--globalBackgroundColor);
@@ -49,24 +49,18 @@
         }
 
         #indexIndicator {
-            font-size: 18px;
-            font-weight: bolder;
-            font-family: Arial;
-            height: 75%;
-
+            height: calc(75% - 4px);
             resize: none;
 
             float: left;
-            width: 40px;
-            text-align: center;
-            padding-top: 15px;
+            width: 30px;
 
             border-color: black;
             border-bottom-width: 4px;
             border-bottom-style: solid;
 
             background-color: var(--globalBackgroundColor);
-            filter: brightness(70%);
+            filter: brightness(80%);
         }
 
         #pairTextarea {
@@ -209,7 +203,7 @@
 <body>
     <div id="sidePanel">
         <div id="textareaPanel">
-            <textarea id="indexIndicator" disabled="true"></textarea>
+            <canvas id="indexIndicator"></canvas>
             <textarea id="textarea" class="hasHoverEffect" placeholder="Write your buble text here.
 Seperate them with one
 empty line.">
@@ -232,7 +226,7 @@ your mouse.">
         <button id="saveButton">Save Image</button>
         <div id="sliderDiv">
             <p id="sliderValue">Global Size: 1</p>
-            <input id="slider" type="range" min="0.3" max="3.0" value="1.0" step="0.05" class="hasHoverEffect">
+            <input id="slider" type="range" min="0.3" max="3.0" value="1.0" step="0.02" class="hasHoverEffect">
         </div>
     </div>
     <canvas id="canvas" spellcheck="false"></canvas>
@@ -266,23 +260,25 @@ your mouse.">
         const PULL_STRENGTH = 0.01;
         const PUSH_STRENGTH = 0.028;
         const LINE_PUSH_STRENGTH = 0.003;
+        const BORDER_PUSH_STRENGTH = 0.6;
         let maxSize = 0;
         let globalSize = 1;
         const DEFAULT_TEXT_SIZE = 25;
         const TEXT_PADDING = 4;
         const MOVE_PADDING = 0.03;
+        const BORDER_PADDING = 40;
         const TRANSPARENT_LINE_COLOR = "rgba(0, 0, 0, 0.25)"
         const BUBBLE_OUTLINE_WIDTH = 0.4;
         const BACKGROUND_IMAGE = document.getElementById("backgroundImage");
 
         recreateBubbles();
-
+        updateIndexIndicator();
 
         // code to refocus the textarea on leave
         //textarea.onblur = () => setTimeout(() => textarea.focus(), 1)
 
-        textarea.addEventListener('keydown', function (e) { // https://stackoverflow.com/questions/6637341/use-tab-to-indent-in-textarea
-            if (e.key == 'Tab') {
+        textarea.addEventListener("keydown", function (e) { // https://stackoverflow.com/questions/6637341/use-tab-to-indent-in-textarea
+            if (e.key == "Tab") {
                 e.preventDefault();
                 var start = this.selectionStart;
                 var end = this.selectionEnd;
@@ -293,6 +289,39 @@ your mouse.">
             }
         });
 
+        textarea.addEventListener("scroll", (e) => {
+            updateIndexIndicator();
+        });
+
+        function updateIndexIndicator() {
+            indexIndicator.width = indexIndicator.clientWidth;
+            indexIndicator.height = indexIndicator.clientHeight;
+
+            let context = indexIndicator.getContext("2d");
+            context.clearRect(0, 0, indexIndicator.width, indexIndicator.height);
+
+            let style = getComputedStyle(textarea);
+            context.font = style.getPropertyValue("font");
+            context.fillStyle = "white";
+            context.textAlign = "center";
+
+            let textSize = parseInt(style.getPropertyValue("font-size").substring(0, 2)) + 3;
+
+            let i = 0;
+            let y = -textarea.scrollTop;
+            let lines = textarea.value.split("\n\n");
+            for (let line of lines) {
+                if (y > indexIndicator.clientHeight + textSize)
+                    break;
+                // TODO: the text which is outside of the height of the indexIndicator still gets rendered
+                context.fillText("" + i, indexIndicator.clientWidth / 2, y + 32);
+                
+                let linebreaks = (line.match(/\n/g) || '').length
+                y += textSize * 2 + textSize * linebreaks;
+                i++;
+            }
+        }
+
         slider.oninput = (e) => {
             if (selectedBubble != null) {
                 selectedBubble.textSizeMultiplier = slider.value;
@@ -300,7 +329,7 @@ your mouse.">
                 sliderValue.innerHTML = "Bubble Size: " + slider.value;
             } else {
                 globalSize = slider.value;
-                sliderValue.innerHTML = "Global Size: " + globalSize;
+                sliderValue.innerHTML = "Global Size: " + slider.value;
                 updateBubbles();
             }
         };
@@ -328,16 +357,12 @@ your mouse.">
             globalSize = tempSize;
 
             let a = document.createElement("a");
-            a.href = newCanvas.toDataURL("png");
-            a.download = 'MindMap.png';
+            a.href = newCanvas.toDataURL("image/jpeg"/*, 0.85*/); // second argument is the compression strength
+            a.download = "MindMap.jpg";
             a.click();
         }
 
         // ------------ text area ---------------------
-
-        textarea.onscroll = (event) => {
-            indexIndicator.scrollTop = textarea.scrollHeight;
-        }
 
         let lastText = textarea.value;
         textarea.addEventListener("input", (event) => {
@@ -347,6 +372,7 @@ your mouse.">
                 textarea.value = lastText;
             } else {
                 lastText = textarea.value;
+                updateIndexIndicator();
             }
         });
 
@@ -362,16 +388,16 @@ your mouse.">
         });
 
         function recreateBubbles() {
-            let split = textarea.value.split("\n\n");
+            let lines = textarea.value.split("\n\n");
             bubbles = [];
             pairs = [];
 
-            for (let line of split) {
+            for (let line of lines) {
                 bubbles.push(createNewBubble(line));
             }
 
-            split = pairTextarea.value.split("\n");
-            for (let line of split) {
+            lines = pairTextarea.value.split("\n");
+            for (let line of lines) {
                 if (line.includes(">")) {
                     let numberSplit = line.split(">");
                     if (numberSplit[0].length == 0 || numberSplit[1].length == 0 || numberSplit[0].match(/.*\D.*/) || numberSplit[1].match(/.*\D.*/)) {
@@ -397,13 +423,13 @@ your mouse.">
         }
 
         function updateBubbles() {
-            let split = textarea.value.split("\n\n");
+            let lines = textarea.value.split("\n\n");
 
             let bubblesCopy = bubbles.slice();
             bubbles = [];
             pairs = [];
-            for (let i = 0; i < split.length; i++) {
-                let line = split[i];
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
                 let newBubble = createNewBubble(line);
                 if (i < bubblesCopy.length) {
                     let oldBubble = bubblesCopy[i];
@@ -417,7 +443,7 @@ your mouse.">
                     newBubble.textSizeMultiplier = oldBubble.textSizeMultiplier;
                     newBubble.radius = calculateBubbleRadius(newBubble.text, textSizeOfBubble(newBubble));
 
-                    if(oldBubble.selected) {
+                    if (oldBubble.selected) {
                         selectedBubble = newBubble;
                     }
                 }
@@ -426,8 +452,10 @@ your mouse.">
 
             if (bubbles.length > bubblesCopy.length) {
                 let selectedIndex = bubbles.indexOf(selectedBubble);
-                if(selectedIndex != -1) {
-                    pairTextarea.value += "\n" + selectedIndex + ">" + (bubbles.length - 1);
+                if (selectedIndex != -1) {
+                    if (pairTextarea.value.length != 0)
+                        pairTextarea.value += "\n";
+                    pairTextarea.value += selectedIndex + ">" + (bubbles.length - 1);
 
                     // change the position of the bubble to the selectedBubble with a random rotation
                     let newBubble = bubbles[bubbles.length - 1];
@@ -438,8 +466,8 @@ your mouse.">
                 }
             }
 
-            split = pairTextarea.value.split("\n");
-            for (let line of split) {
+            lines = pairTextarea.value.split("\n");
+            for (let line of lines) {
                 if (line.includes(">")) {
                     let numberSplit = line.split(">");
                     if (numberSplit[0].length == 0 || numberSplit[0].match(/.*\D.*/) || numberSplit[1].match(/.*\D.*/)) {
@@ -530,10 +558,8 @@ your mouse.">
         function addPairWithMouse(firstIndex, secondIndex) {
             removePairWithMouse(firstIndex, secondIndex);
 
-            if (pairTextarea.value.length != 0) {
+            if (pairTextarea.value.length != 0)
                 pairTextarea.value += "\n";
-            }
-
             pairTextarea.value += firstIndex + ">" + secondIndex;
             updateBubbles();
         }
@@ -842,6 +868,11 @@ your mouse.">
                 attract(second, first);
             }
 
+            // detract bubble from border
+            for (let bubble of bubbles) {
+                detractBorder(bubble);
+            }
+
             // apply the motion of the bubbles to the position and limit their position to the screen
             for (let bubble of bubbles) {
                 if (bubble.dragging) {
@@ -851,10 +882,27 @@ your mouse.">
                 }
                 bubble.x += bubble.motionX;
                 bubble.y += bubble.motionY;
-                bubble.x = Math.max(bubble.x, canvasToGamePositionX(0));
-                bubble.x = Math.min(bubble.x, canvasToGamePositionX(canvas.clientWidth));
-                bubble.y = Math.max(bubble.y, canvasToGamePositionY(0));
-                bubble.y = Math.min(bubble.y, canvasToGamePositionY(canvas.clientHeight));
+
+                let maxX = canvasToGamePositionX(canvas.clientWidth) - bubble.radius;
+                let minX = canvasToGamePositionX(0) + bubble.radius;
+                let maxY = canvasToGamePositionY(canvas.clientHeight) - bubble.radius;
+                let minY = canvasToGamePositionY(0) + bubble.radius;
+                if (bubble.x + bubble.motionX > maxX) {
+                    bubble.x = maxX;
+                    bubble.motionX = 0;
+                }
+                if (bubble.x + bubble.motionX < minX) {
+                    bubble.x = minX;
+                    bubble.motionX = 0;
+                }
+                if (bubble.y + bubble.motionY > maxY) {
+                    bubble.y = maxY;
+                    bubble.motionY = 0;
+                }
+                if (bubble.y + bubble.motionY < minY) {
+                    bubble.y = minY;
+                    bubble.motionY = 0;
+                }
 
                 bubble.motionX *= 0.94;
                 bubble.motionY *= 0.94;
@@ -912,6 +960,38 @@ your mouse.">
 
             second.motionX += Math.cos(rotation) * distance * LINE_PUSH_STRENGTH;
             second.motionY += Math.sin(rotation) * distance * LINE_PUSH_STRENGTH;
+        }
+
+        function detractBorder(bubble) {
+            let minX = canvasToGamePositionX(0);
+            let maxX = canvasToGamePositionX(canvas.clientWidth);
+            let minY = canvasToGamePositionY(0);
+            let maxY = canvasToGamePositionY(canvas.clientHeight);
+
+            let lines = [
+                [minX, minY, maxX, minY],
+                [maxX, minY, maxX, maxY],
+                [maxX, maxY, minX, maxY],
+                [minX, maxY, minX, minY]
+            ];
+            for (let line of lines) {
+                let point = nearestPointOnLine(line[0], line[1], line[2], line[3], bubble.x, bubble.y);
+                let combinedSizes = bubble.radius / 2;
+
+                if (canvas.clientWidth > canvas.clientHeight) {
+                    combinedSizes += canvasToGamePositionX(BORDER_PADDING);
+                } else {
+                    combinedSizes += canvasToGamePositionY(BORDER_PADDING);
+                }
+
+                let rotation = Math.atan2(bubble.y - point[1], bubble.x - point[0]);
+
+                let distance = combinedSizes - Math.hypot(point[0] - bubble.x, point[1] - bubble.y);
+                distance = Math.max(distance, 0);
+
+                bubble.motionX += Math.cos(rotation) * distance * BORDER_PUSH_STRENGTH;
+                bubble.motionY += Math.sin(rotation) * distance * BORDER_PUSH_STRENGTH;
+            }
         }
 
         function pseudoRandom(seed) {

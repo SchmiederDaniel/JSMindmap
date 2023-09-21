@@ -266,7 +266,7 @@ your mouse.">
         const DEFAULT_TEXT_SIZE = 25;
         const TEXT_PADDING = 4;
         const MOVE_PADDING = 0.03;
-        const BORDER_PADDING = 40;
+        const BORDER_PADDING = 20;
         const TRANSPARENT_LINE_COLOR = "rgba(0, 0, 0, 0.25)"
         const BUBBLE_OUTLINE_WIDTH = 0.4;
         const BACKGROUND_IMAGE = document.getElementById("backgroundImage");
@@ -858,10 +858,10 @@ your mouse.">
                 bubble.x += bubble.motionX;
                 bubble.y += bubble.motionY;
 
-                let maxX = canvasToGamePositionX(canvas.clientWidth) - bubble.radius;
-                let minX = canvasToGamePositionX(0) + bubble.radius;
-                let maxY = canvasToGamePositionY(canvas.clientHeight) - bubble.radius;
-                let minY = canvasToGamePositionY(0) + bubble.radius;
+                let maxX = canvasToGamePositionX(canvas.clientWidth - BORDER_PADDING) - bubble.radius;
+                let minX = canvasToGamePositionX(BORDER_PADDING) + bubble.radius;
+                let maxY = canvasToGamePositionY(canvas.clientHeight - BORDER_PADDING) - bubble.radius;
+                let minY = canvasToGamePositionY(BORDER_PADDING) + bubble.radius;
                 if (bubble.x + bubble.motionX > maxX) {
                     bubble.x = maxX;
                     bubble.motionX = 0;

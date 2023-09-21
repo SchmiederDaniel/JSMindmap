@@ -272,7 +272,6 @@ your mouse.">
         const BACKGROUND_IMAGE = document.getElementById("backgroundImage");
 
         recreateBubbles();
-        updateIndexIndicator();
 
         // code to refocus the textarea on leave
         //textarea.onblur = () => setTimeout(() => textarea.focus(), 1)
@@ -290,10 +289,10 @@ your mouse.">
         });
 
         textarea.addEventListener("scroll", (e) => {
-            updateIndexIndicator();
+            redrawIndexIndicator();
         });
 
-        function updateIndexIndicator() {
+        function redrawIndexIndicator() {
             indexIndicator.width = indexIndicator.clientWidth;
             indexIndicator.height = indexIndicator.clientHeight;
 
@@ -315,7 +314,7 @@ your mouse.">
                     break;
                 // TODO: the text which is outside of the height of the indexIndicator still gets rendered
                 context.fillText("" + i, indexIndicator.clientWidth / 2, y + 32);
-                
+
                 let linebreaks = (line.match(/\n/g) || '').length
                 y += textSize * 2 + textSize * linebreaks;
                 i++;
@@ -338,8 +337,10 @@ your mouse.">
 
         // using const to see which variables are global
         function createImageAndSave() {
-            const width = 16 * 300;
-            const height = 9 * 300;
+            let ratio = canvas.width / canvas.height;
+
+            const width = 6000;
+            const height = 6000 / ratio;
 
             let image = new Image(width, height);
             const newCanvas = document.createElement('canvas');
@@ -349,10 +350,8 @@ your mouse.">
             newCanvas.clientHeight = height;
             const context = newCanvas.getContext("2d");
 
-            const newMaxSize = Math.max(newCanvas.width, newCanvas.height);
-
             let tempSize = globalSize;
-            globalSize = newMaxSize / maxSize * tempSize;
+            globalSize *= width / canvas.width;
             draw(context, newCanvas);
             globalSize = tempSize;
 
@@ -372,7 +371,7 @@ your mouse.">
                 textarea.value = lastText;
             } else {
                 lastText = textarea.value;
-                updateIndexIndicator();
+                redrawIndexIndicator();
             }
         });
 
@@ -636,6 +635,7 @@ your mouse.">
         textarea.onresize = (e) => resize();
         resize();
         function resize() {
+            redrawIndexIndicator();
             canvas.width = canvas.clientWidth;
             canvas.height = canvas.clientHeight;
             maxSize = Math.max(canvas.width, canvas.height);
@@ -702,16 +702,6 @@ your mouse.">
                 }
             }
 
-            /*context.beginPath();
-            context.moveTo(0, 0);
-            context.lineTo(canvas.width, canvas.height);
-            context.stroke();
- 
-            context.beginPath();
-            context.moveTo(0, canvas.height);
-            context.lineTo(canvas.width, 0);
-            context.stroke();*/
-
             context.save();
 
             context.translate(
@@ -754,10 +744,12 @@ your mouse.">
                     }
                 }
 
+                let textSize = textSizeOfBubble(bubble);
+
                 // draw outline
                 context.shadowBlur = 0;
                 context.strokeStyle = TRANSPARENT_LINE_COLOR;
-                context.lineWidth = textSizeOfBubble(bubble) * BUBBLE_OUTLINE_WIDTH;
+                context.lineWidth = textSize * BUBBLE_OUTLINE_WIDTH;
                 context.beginPath();
                 context.arc(bubble.x * maxSize, bubble.y * maxSize, Math.ceil(bubble.radius * maxSize - context.lineWidth / 2), 0, 2 * Math.PI);
                 context.stroke();
@@ -768,29 +760,12 @@ your mouse.">
                 context.fillStyle = "black";
 
                 let lines = bubble.text.split("\n");
-                let height = -(textSizeOfBubble(bubble) * (lines.length - 1)) * 0.5;
+                let height = -(textSize * (lines.length - 1)) * 0.5;
                 for (const line of lines) {
-                    context.fillText(line, bubble.x * maxSize, bubble.y * maxSize + textSizeOfBubble(bubble) / 2 + height);
-                    height += textSizeOfBubble(bubble);
+                    context.fillText(line, bubble.x * maxSize, bubble.y * maxSize + textSize / 2 + height);
+                    height += textSize;
                 }
             }
-
-
-            // DEBUG
-            /*for (let pair of pairs) {
-                let first = bubbles[pair[0]];
-                let second = bubbles[pair[1]];
-                if (first == undefined || second == undefined)
-                    continue;
-                let array = nearestPointOnLine(first.x, first.y, second.x, second.y, 0.5, 0.5);
-
-                context.lineWidth = 8;
-                context.strokeStyle = "red";
-                context.beginPath();
-                context.moveTo(0.5 * maxSize, 0.5 * maxSize, 20, 0, 2 * Math.PI, false);
-                context.lineTo(array[0] * maxSize, array[1] * maxSize, 20, 0, 2 * Math.PI, false);
-                context.stroke();
-            }*/
 
             context.restore();
         }
@@ -995,7 +970,7 @@ your mouse.">
         }
 
         function pseudoRandom(seed) {
-            var r = Math.PI * (seed ^ 323542)
+            var r = Math.PI * (seed ^ 59302)
             return r - Math.floor(r)
         }
     </script>
